@@ -1,0 +1,18 @@
+[package]
+name = "arduino_nano"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+avr-device = { version = "0.6", features = ["atmega328p"] }
+panic-halt = "0.2.0"
+ufmt = "0.2.0"
+embedded-hal = "1.0"
+
+[dependencies.embedded-lcd]
+path = "../../embedded-lcd"
+features = ["ufmt"]
+
+[dependencies.arduino-hal]
+git = "https://github.com/Rahix/avr-hal.git"
+features = ["arduino-nano"]

@@ -1,0 +1,21 @@
+[package]
+name = "embedded-lcd"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitflags = "2.6.0"
+embedded-hal = "1.0"
+
+[dependencies.ufmt]
+version = "0.2"
+optional = true
+
+[dependencies.defmt]
+version = "0.3.8"
+optional = true
+
+[features]
+default = ["ufmt", "defmt"]
+ufmt = ["dep:ufmt"]
+defmt = ["dep:defmt"]
