@@ -4,9 +4,7 @@
 use arduino_hal::Delay;
 use embedded_hal::delay::DelayNs as _;
 use embedded_lcd::{
-    blocking::BlockingLcdDriver,
-    bus::{blocking::parallel::LcdParallelBus, ParallelPinsW4},
-    LcdDisplayMode, LcdDriver,
+    blocking::BlockingLcdDriver, bus::blocking::i2c_8574::LcdI2c8574Bus, LcdDisplayMode, LcdDriver,
 };
 
 extern crate panic_halt;
@@ -21,22 +19,23 @@ fn main() -> ! {
 
     let mut delay = Delay::new();
 
-    ufmt::uwriteln!(serial, "Start").unwrap();
+    ufmt::uwriteln!(serial, "Start\r").unwrap();
 
-    // Create 4 bit parallel bus
-    let bus = LcdParallelBus::new_4bit(ParallelPinsW4 {
-        rs: pins.d12.into_output(),
-        en: pins.d11.into_output(),
-        d4: pins.d6.into_opendrain(),
-        d5: pins.d5.into_opendrain(),
-        d6: pins.d4.into_opendrain(),
-        d7: pins.d3.into_opendrain(),
-    });
+    // Configure I2C interface
+    let i2c = arduino_hal::I2c::new(
+        peripherals.TWI,
+        pins.a4.into_pull_up_input(),
+        pins.a5.into_pull_up_input(),
+        100_000,
+    );
+
+    // Create 8 bit parallel bus
+    let bus = LcdI2c8574Bus::new(i2c, 0x27);
 
     // Initialize LCD driver
     let mut display = LcdDriver::init(
-        embedded_lcd::MemoryMap1602::new(),          // 16x2 LCD
-        embedded_lcd::CharsetA00::QUESTION_FALLBACK, // ASCII + Japanese
+        embedded_lcd::MemoryMap2004::new(),
+        embedded_lcd::CharsetA00::QUESTION_FALLBACK,
         bus,
         &mut delay,
     )
@@ -58,6 +57,8 @@ fn main() -> ! {
         display.clear(&mut delay).unwrap();
         display.return_home(&mut delay).unwrap();
         display.write_str(&hello, &mut delay).unwrap();
+        let status = display.status(&mut delay);
+        ufmt::uwriteln!(serial, "{:?}\r", status).unwrap();
         delay.delay_ms(2000);
     }
     unreachable!()

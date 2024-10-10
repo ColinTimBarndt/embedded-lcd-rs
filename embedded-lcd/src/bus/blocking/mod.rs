@@ -5,6 +5,7 @@ use crate::driver::{LcdDisplayMode, LcdEntryMode, LcdFunctionMode, LcdStatus};
 use super::LcdRegisterSelect;
 
 pub mod parallel;
+pub mod i2c_8574;
 
 pub trait LcdRead {
     type Error;

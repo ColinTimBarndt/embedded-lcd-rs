@@ -2,7 +2,7 @@ use core::fmt::Debug;
 
 use bitflags::bitflags;
 
-pub(crate) mod blocking;
+pub mod blocking;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]

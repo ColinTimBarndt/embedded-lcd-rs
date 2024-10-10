@@ -1,7 +1,12 @@
 use embedded_hal::digital::PinState;
 
-pub(crate) mod blocking;
-pub(crate) mod pins;
+pub mod blocking;
+
+mod pins;
+pub use pins::*;
+
+mod timings;
+pub use timings::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]

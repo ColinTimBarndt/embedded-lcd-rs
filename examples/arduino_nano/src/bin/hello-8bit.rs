@@ -4,13 +4,12 @@
 use arduino_hal::Delay;
 use embedded_hal::delay::DelayNs as _;
 use embedded_lcd::{
-    blocking::{
-        bus::{parallel::LcdParallelBus, ParallelPinsW8},
-        BlockingLcdDriver, LcdDisplayMode, LcdDriver,
-    },
-    charset, memory_map,
+    blocking::BlockingLcdDriver,
+    bus::{blocking::parallel::LcdParallelBus, ParallelPinsW8},
+    LcdDisplayMode, LcdDriver,
 };
-use panic_halt as _;
+
+extern crate panic_halt;
 
 #[arduino_hal::entry]
 fn main() -> ! {
@@ -40,8 +39,8 @@ fn main() -> ! {
 
     // Initialize LCD driver
     let mut display = LcdDriver::init(
-        memory_map::MemoryMap1602::new(),       // 16x2 LCD
-        charset::CharsetA00::QUESTION_FALLBACK, // ASCII + Japanese
+        embedded_lcd::MemoryMap1602::new(),          // 16x2 LCD
+        embedded_lcd::CharsetA00::QUESTION_FALLBACK, // ASCII + Japanese
         bus,
         &mut delay,
     )

@@ -1,4 +1,4 @@
-use core::{convert::Infallible, ops::BitAnd};
+use core::convert::Infallible;
 
 use embedded_hal::{
     delay::DelayNs,
@@ -6,7 +6,11 @@ use embedded_hal::{
 };
 
 use crate::{
-    bus::{pins::ParallelPins, LcdRegisterSelect},
+    bus::{
+        pins::ParallelPins,
+        timings::{DefaultTimingsParallel4, DefaultTimingsParallel8, LcdTimingsParallel},
+        LcdRegisterSelect,
+    },
     driver::{LcdDisplayMode, LcdEntryMode, LcdFunctionMode, LcdStatus},
 };
 
@@ -68,115 +72,15 @@ impl<T: OutputPin> sealed::ReadModeSet<T::Error> for T {
 
 impl<T: OutputPin> ReadModeSet<T::Error> for T {}
 
-pub trait LcdTimings {
-    fn enable_pulse_on(&self, rs: LcdRegisterSelect, delay: &mut impl DelayNs);
-
-    fn enable_pulse_off(&self, rs: LcdRegisterSelect, delay: &mut impl DelayNs);
-
-    fn read_delay(&self, delay: &mut impl DelayNs);
-
-    fn power_on_delay(&self, delay: &mut impl DelayNs);
-
-    fn first_init_delay(&self, delay: &mut impl DelayNs);
-
-    fn second_init_delay(&self, delay: &mut impl DelayNs);
-}
-
-#[derive(Debug, Default)]
-#[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct DefaultTimings8;
-
-impl LcdTimings for DefaultTimings8 {
-    #[inline(always)]
-    fn enable_pulse_on(&self, rs: LcdRegisterSelect, delay: &mut impl DelayNs) {
-        match rs {
-            LcdRegisterSelect::Control => delay.delay_us(1500),
-            LcdRegisterSelect::Memory => delay.delay_ns(500), // PW_EH >= 230ns on HITACHI specification p. 52
-        }
-    }
-
-    #[inline(always)]
-    fn enable_pulse_off(&self, rs: LcdRegisterSelect, delay: &mut impl DelayNs) {
-        match rs {
-            LcdRegisterSelect::Control => delay.delay_ms(1),
-            LcdRegisterSelect::Memory => delay.delay_us(50),
-        }
-    }
-
-    #[inline(always)]
-    fn read_delay(&self, delay: &mut impl DelayNs) {
-        delay.delay_ms(1);
-    }
-
-    #[inline(always)]
-    fn power_on_delay(&self, delay: &mut impl DelayNs) {
-        delay.delay_ms(50);
-    }
-
-    #[inline(always)]
-    fn first_init_delay(&self, delay: &mut impl DelayNs) {
-        delay.delay_us(4500);
-    }
-
-    #[inline(always)]
-    fn second_init_delay(&self, delay: &mut impl DelayNs) {
-        delay.delay_us(100);
-    }
-}
-
-#[derive(Debug, Default)]
-#[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct DefaultTimings4;
-
-impl LcdTimings for DefaultTimings4 {
-    #[inline(always)]
-    fn enable_pulse_on(&self, rs: LcdRegisterSelect, delay: &mut impl DelayNs) {
-        match rs {
-            LcdRegisterSelect::Control => delay.delay_us(750),
-            LcdRegisterSelect::Memory => delay.delay_us(3),
-        }
-    }
-
-    #[inline(always)]
-    fn enable_pulse_off(&self, rs: LcdRegisterSelect, delay: &mut impl DelayNs) {
-        match rs {
-            LcdRegisterSelect::Control => delay.delay_us(800),
-            LcdRegisterSelect::Memory => delay.delay_us(50),
-        }
-    }
-
-    #[inline(always)]
-    fn read_delay(&self, delay: &mut impl DelayNs) {
-        delay.delay_us(800);
-    }
-
-    #[inline(always)]
-    fn power_on_delay(&self, delay: &mut impl DelayNs) {
-        delay.delay_ms(50);
-    }
-
-    #[inline(always)]
-    fn first_init_delay(&self, delay: &mut impl DelayNs) {
-        delay.delay_us(4500);
-    }
-
-    #[inline(always)]
-    fn second_init_delay(&self, delay: &mut impl DelayNs) {
-        delay.delay_us(100);
-    }
-}
-
 #[derive(Debug)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct LcdParallelBus<P: ParallelPins, T: LcdTimings, const WIDTH: u8> {
+pub struct LcdParallelBus<P: ParallelPins, T: LcdTimingsParallel, const WIDTH: u8> {
     pins: P,
     timings: T,
 }
 
-impl<P: ParallelPins, E> LcdParallelBus<P, DefaultTimings8, 8>
+impl<P: ParallelPins, E> LcdParallelBus<P, DefaultTimingsParallel8, 8>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E>,
@@ -194,12 +98,12 @@ where
     pub fn new_8bit(pins: P) -> Self {
         Self {
             pins,
-            timings: DefaultTimings8,
+            timings: DefaultTimingsParallel8,
         }
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdParallelBus<P, T, 8>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E>,
@@ -220,7 +124,7 @@ where
 }
 
 impl<P: ParallelPins<D0 = Infallible, D1 = Infallible, D2 = Infallible, D3 = Infallible>, E>
-    LcdParallelBus<P, DefaultTimings4, 4>
+    LcdParallelBus<P, DefaultTimingsParallel4, 4>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E>,
@@ -234,12 +138,12 @@ where
     pub fn new_4bit(pins: P) -> Self {
         Self {
             pins,
-            timings: DefaultTimings4,
+            timings: DefaultTimingsParallel4,
         }
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdParallelBus<P, T, 4>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E>,
@@ -255,7 +159,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, const WIDTH: u8> LcdParallelBus<P, T, WIDTH>
+impl<P: ParallelPins, T: LcdTimingsParallel, const WIDTH: u8> LcdParallelBus<P, T, WIDTH>
 where
     P::EN: OutputPin,
 {
@@ -271,7 +175,11 @@ where
     }
 
     #[inline(always)]
-    fn enable_off(&mut self, rs: LcdRegisterSelect, delay: &mut impl DelayNs) -> Result<(), <P::EN as ErrorType>::Error> {
+    fn enable_off(
+        &mut self,
+        rs: LcdRegisterSelect,
+        delay: &mut impl DelayNs,
+    ) -> Result<(), <P::EN as ErrorType>::Error> {
         self.pins.en().set_low()?;
         self.timings.enable_pulse_off(rs, delay);
         Ok(())
@@ -310,7 +218,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdParallelBus<P, T, 8>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
     P::EN: OutputPin<Error = E>,
@@ -338,7 +246,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdParallelBus<P, T, 8>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E> + ReadModeSet<E>,
@@ -383,7 +291,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdParallelBus<P, T, 4>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
     P::EN: OutputPin<Error = E>,
@@ -403,7 +311,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdParallelBus<P, T, 4>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E> + ReadModeSet<E>,
@@ -444,7 +352,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdWrite for LcdParallelBus<P, T, 8>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdWrite for LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
     P::EN: OutputPin<Error = E>,
@@ -472,7 +380,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdRead for LcdParallelBus<P, T, 8>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdRead for LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E> + ReadModeSet<E>,
@@ -495,7 +403,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdInit for LcdParallelBus<P, T, 8>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdInit for LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E>,
@@ -531,18 +439,18 @@ where
         self.write_command(
             crate::FUNCTION_SET
                 | function
-                    .bitand(LcdFunctionMode::all())
+                    .intersection(LcdFunctionMode::all())
                     .union(LcdFunctionMode::DATA_LENGTH)
                     .bits(),
             delay,
         )?;
         self.write_command(
-            crate::DISPLAY_CONTROL | display.bitand(LcdDisplayMode::all()).bits(),
+            crate::DISPLAY_CONTROL | display.intersection(LcdDisplayMode::all()).bits(),
             delay,
         )?;
         self.write_command(crate::CLEAR_DISPLAY, delay)?;
         self.write_command(
-            crate::ENTRY_MODE_SET | entry.bitand(LcdEntryMode::all()).bits(),
+            crate::ENTRY_MODE_SET | entry.intersection(LcdEntryMode::all()).bits(),
             delay,
         )?;
 
@@ -550,7 +458,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdWrite for LcdParallelBus<P, T, 4>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdWrite for LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
     P::EN: OutputPin<Error = E>,
@@ -576,7 +484,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdRead for LcdParallelBus<P, T, 4>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdRead for LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E> + ReadModeSet<E>,
@@ -595,7 +503,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimings, E> LcdInit for LcdParallelBus<P, T, 4>
+impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdInit for LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
     P::RW: WriteModeSet<E>,
@@ -630,17 +538,17 @@ where
         self.write_command(
             crate::FUNCTION_SET
                 | function
-                    .bitand(LcdFunctionMode::all().difference(LcdFunctionMode::DATA_LENGTH))
+                    .intersection(LcdFunctionMode::all().difference(LcdFunctionMode::DATA_LENGTH))
                     .bits(),
             delay,
         )?;
         self.write_command(
-            crate::DISPLAY_CONTROL | display.bitand(LcdDisplayMode::all()).bits(),
+            crate::DISPLAY_CONTROL | display.intersection(LcdDisplayMode::all()).bits(),
             delay,
         )?;
         self.write_command(crate::CLEAR_DISPLAY, delay)?;
         self.write_command(
-            crate::ENTRY_MODE_SET | entry.bitand(LcdEntryMode::all()).bits(),
+            crate::ENTRY_MODE_SET | entry.intersection(LcdEntryMode::all()).bits(),
             delay,
         )?;
 
