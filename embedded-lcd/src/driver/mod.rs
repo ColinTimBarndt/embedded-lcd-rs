@@ -1,8 +1,10 @@
-use core::fmt::Debug;
+use core::{error::Error, fmt::Debug};
 
 use bitflags::bitflags;
 
 pub mod blocking;
+mod options;
+pub use options::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
@@ -21,6 +23,68 @@ impl<B, M, C> LcdDriver<B, M, C> {
 
     pub fn charset(&self) -> &C {
         &self.charset
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct LcdInitError<T, E> {
+    pub options: T,
+    pub source: E,
+}
+
+impl<T, E> core::fmt::Debug for LcdInitError<T, E>
+where
+    E: core::fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        fmt.debug_struct("LcdInitError")
+            .field("source", &self.source)
+            // Do not format options to allow using `.unwrap()` on any error
+            .finish_non_exhaustive()
+    }
+}
+
+impl<T, E> core::fmt::Display for LcdInitError<T, E>
+where
+    E: core::fmt::Display,
+{
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.source.fmt(fmt)
+    }
+}
+
+impl<T, E> Error for LcdInitError<T, E>
+where
+    T: core::fmt::Debug,
+    E: Error + 'static,
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&self.source)
+    }
+}
+
+#[cfg(feature = "ufmt")]
+impl<T, E> ufmt::uDebug for LcdInitError<T, E>
+where
+    E: ufmt::uDebug,
+{
+    fn fmt<W>(&self, fmt: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        fmt.debug_struct("LcdInitError")?
+            .field("source", &self.source)?
+            .finish()
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl<T, E> defmt::Format for LcdInitError<T, E>
+where
+    E: defmt::Format,
+{
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(fmt, "LcdInitError {{ source: {:?}, .. }}", self.source)
     }
 }
 

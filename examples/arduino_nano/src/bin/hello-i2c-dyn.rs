@@ -3,7 +3,7 @@
 
 use arduino_hal::{i2c, Delay};
 use embedded_hal::delay::DelayNs as _;
-use embedded_lcd::{blocking::*, bus::LcdI2c8574Bus, LcdDisplayMode, LcdDriver};
+use embedded_lcd::{blocking::*, bus::LcdI2c8574Bus, LcdDisplayMode, LcdDriver, LcdDriverOptions};
 
 extern crate panic_halt;
 
@@ -27,14 +27,13 @@ fn main() -> ! {
         100_000,
     );
 
-    // Create 8 bit parallel bus
+    // Create i2c bus
     let bus = LcdI2c8574Bus::new(i2c, 0x27);
 
     // Initialize LCD driver
     let mut display = LcdDriver::init(
-        embedded_lcd::MemoryMap2004::new(),
-        embedded_lcd::CharsetA00::QUESTION_FALLBACK,
-        bus,
+        LcdDriverOptions::new(bus, embedded_lcd::MemoryMap1602::new())
+            .with_charset(embedded_lcd::CharsetA00::QUESTION_FALLBACK),
         &mut delay,
     )
     .unwrap();

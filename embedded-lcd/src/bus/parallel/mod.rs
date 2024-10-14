@@ -3,8 +3,6 @@ mod blocking;
 mod pins;
 pub use pins::*;
 
-use core::convert::Infallible;
-
 use embedded_hal::digital::OutputPin;
 
 use crate::bus::timings;
@@ -118,7 +116,7 @@ where
     }
 }
 
-impl<P: LcdParallelPins<D0 = Infallible, D1 = Infallible, D2 = Infallible, D3 = Infallible>, E>
+impl<P: LcdParallelPins<D0 = NoPin, D1 = NoPin, D2 = NoPin, D3 = NoPin>, E>
     LcdParallelBus<P, timings::DefaultTimingsParallel4, 4>
 where
     P::RS: OutputPin<Error = E>,

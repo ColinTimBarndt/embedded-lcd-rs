@@ -10,7 +10,7 @@ use crate::{
     memory_map::DisplayMemoryMap,
 };
 
-use super::{LcdDisplayMode, LcdDriver, LcdStatus};
+use super::{LcdDisplayMode, LcdDriver, LcdDriverOptions, LcdFontMode, LcdInitError, LcdStatus};
 
 pub trait BlockingLcdDriverInit<Delay>: Sized
 where
@@ -18,14 +18,19 @@ where
 {
     type MemoryMap: DisplayMemoryMap;
     type Charset;
-    type Bus: LcdInit<Delay> + LcdWrite<Delay>;
+    type Bus: LcdInit<Delay>;
 
+    #[allow(clippy::type_complexity)]
     fn init(
-        memory_map: Self::MemoryMap,
-        charset: Self::Charset,
-        bus: Self::Bus,
+        options: LcdDriverOptions<Self::Bus, Self::MemoryMap, Self::Charset>,
         delay: &mut Delay,
-    ) -> Result<Self, <Self::Bus as LcdWrite<Delay>>::Error>;
+    ) -> Result<
+        Self,
+        LcdInitError<
+            LcdDriverOptions<Self::Bus, Self::MemoryMap, Self::Charset>,
+            <Self::Bus as LcdWrite<Delay>>::Error,
+        >,
+    >;
 }
 
 pub trait BlockingLcdDriverDestroy {
@@ -73,7 +78,7 @@ pub trait BlockingLcdDriver<Delay: ?Sized> {
 
 impl<B, M, C, Delay> BlockingLcdDriverInit<Delay> for LcdDriver<B, M, C>
 where
-    B: LcdInit<Delay> + LcdWrite<Delay>,
+    B: LcdInit<Delay>,
     M: DisplayMemoryMap,
     Delay: DelayNs + ?Sized,
 {
@@ -81,31 +86,39 @@ where
     type Charset = C;
     type Bus = B;
 
-    // TODO: hand back arguments on error
     fn init(
-        memory_map: Self::MemoryMap,
-        charset: Self::Charset,
-        mut bus: Self::Bus,
+        mut options: LcdDriverOptions<Self::Bus, Self::MemoryMap, Self::Charset>,
         delay: &mut Delay,
-    ) -> Result<Self, <Self::Bus as LcdWrite<Delay>>::Error> {
+    ) -> Result<
+        Self,
+        LcdInitError<
+            LcdDriverOptions<Self::Bus, Self::MemoryMap, Self::Charset>,
+            <Self::Bus as LcdWrite<Delay>>::Error,
+        >,
+    > {
         let mut function = LcdFunctionMode::empty();
+
         // Enables the second memory line for 2-line displays.
-        if memory_map.has_two_memory_lines() {
+        if options.memory_map.has_two_memory_lines() {
             function |= LcdFunctionMode::DISPLAY_LINES;
+        }
+
+        if options.font == LcdFontMode::Font5x10 {
+            function |= LcdFunctionMode::FONT;
         }
 
         let display_mode = LcdDisplayMode::SHOW_DISPLAY | LcdDisplayMode::SHOW_CURSOR;
 
         let entry = LcdEntryMode::INCREMENT;
 
-        // TODO: 5x10 dot font option
-
-        bus.init(function, display_mode, entry, delay)?;
+        if let Err(source) = options.bus.init(function, display_mode, entry, delay) {
+            return Err(LcdInitError { options, source });
+        }
 
         Ok(Self {
-            bus,
-            memory_map,
-            charset,
+            bus: options.bus,
+            memory_map: options.memory_map,
+            charset: options.charset,
             display_mode,
         })
     }

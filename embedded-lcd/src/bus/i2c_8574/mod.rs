@@ -18,6 +18,49 @@ bitflags! {
     }
 }
 
+impl core::fmt::Debug for Pins {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        fmt.debug_struct("Pins")
+            .field("register_select", &self.contains(Self::REGISTER_SELECT))
+            .field("read", &self.contains(Self::READ))
+            .field("enable", &self.contains(Self::ENABLE))
+            .field("backlight", &self.contains(Self::BACKLIGHT))
+            .field("data", &(self.bits() >> 4))
+            .finish()
+    }
+}
+
+#[cfg(feature = "ufmt")]
+impl ufmt::uDebug for Pins {
+    fn fmt<W>(&self, fmt: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        fmt.debug_struct("Pins")?
+            .field("register_select", &self.contains(Self::REGISTER_SELECT))?
+            .field("read", &self.contains(Self::READ))?
+            .field("enable", &self.contains(Self::ENABLE))?
+            .field("backlight", &self.contains(Self::BACKLIGHT))?
+            .field("data", &(self.bits() >> 4))?
+            .finish()
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for Pins {
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(
+            fmt,
+            "Pins {{ register_select: {}, read: {}, enable: {}, backlight: {}, data: {} }}",
+            self.contains(Self::REGISTER_SELECT),
+            self.contains(Self::READ),
+            self.contains(Self::ENABLE),
+            self.contains(Self::BACKLIGHT),
+            self.bits() >> 4
+        )
+    }
+}
+
 impl Pins {
     #[inline(always)]
     fn bits_array<const N: usize>(pins: [Pins; N]) -> [u8; N] {

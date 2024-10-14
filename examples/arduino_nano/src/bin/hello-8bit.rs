@@ -6,7 +6,7 @@ use embedded_hal::delay::DelayNs as _;
 use embedded_lcd::{
     blocking::*,
     bus::{LcdParallelBus, LcdParallelPinsW8},
-    LcdDisplayMode, LcdDriver,
+    LcdDisplayMode, LcdDriver, LcdDriverOptions,
 };
 
 extern crate panic_halt;
@@ -39,9 +39,8 @@ fn main() -> ! {
 
     // Initialize LCD driver
     let mut display = LcdDriver::init(
-        embedded_lcd::MemoryMap1602::new(),          // 16x2 LCD
-        embedded_lcd::CharsetA00::QUESTION_FALLBACK, // ASCII + Japanese
-        bus,
+        LcdDriverOptions::new(bus, embedded_lcd::MemoryMap1602::new())
+            .with_charset(embedded_lcd::CharsetA00::QUESTION_FALLBACK),
         &mut delay,
     )
     .unwrap();

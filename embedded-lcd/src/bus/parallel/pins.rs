@@ -1,5 +1,3 @@
-use core::convert::Infallible;
-
 use super::LcdParallelWriteOnly;
 
 pub trait LcdParallelPins {
@@ -27,6 +25,12 @@ pub trait LcdParallelPins {
     fn d6(&mut self) -> &mut Self::D6;
     fn d7(&mut self) -> &mut Self::D7;
 }
+
+/// Indicates that a pin does not exist.
+#[derive(Debug)]
+#[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum NoPin {}
 
 #[derive(Debug)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
@@ -180,10 +184,10 @@ impl<RS, RW, EN, D4, D5, D6, D7> LcdParallelPins
     type RS = RS;
     type RW = RW;
     type EN = EN;
-    type D0 = Infallible;
-    type D1 = Infallible;
-    type D2 = Infallible;
-    type D3 = Infallible;
+    type D0 = NoPin;
+    type D1 = NoPin;
+    type D2 = NoPin;
+    type D3 = NoPin;
     type D4 = D4;
     type D5 = D5;
     type D6 = D6;
@@ -240,10 +244,10 @@ impl<RS, EN, D4, D5, D6, D7> LcdParallelPins for LcdParallelPinsW4<RS, EN, D4, D
     type RS = RS;
     type RW = LcdParallelWriteOnly;
     type EN = EN;
-    type D0 = Infallible;
-    type D1 = Infallible;
-    type D2 = Infallible;
-    type D3 = Infallible;
+    type D0 = NoPin;
+    type D1 = NoPin;
+    type D2 = NoPin;
+    type D3 = NoPin;
     type D4 = D4;
     type D5 = D5;
     type D6 = D6;
