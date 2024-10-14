@@ -1,5 +1,3 @@
-use core::convert::Infallible;
-
 use embedded_hal::{
     delay::DelayNs,
     digital::{ErrorType, InputPin, OutputPin, PinState},
@@ -7,218 +5,92 @@ use embedded_hal::{
 
 use crate::{
     bus::{
-        pins::ParallelPins,
-        timings::{DefaultTimingsParallel4, DefaultTimingsParallel8, LcdTimingsParallel},
-        LcdRegisterSelect,
+        blocking::{LcdInit, LcdRead, LcdWrite},
+        LcdRegisterSelect, LcdTimingsParallel,
     },
-    driver::{LcdDisplayMode, LcdEntryMode, LcdFunctionMode, LcdStatus},
+    LcdDisplayMode, LcdEntryMode, LcdFunctionMode, LcdStatus,
 };
 
-use super::{LcdInit, LcdRead, LcdWrite};
+use super::{
+    sealed::{LcdParallelReadModeSet as _, LcdParallelWriteModeSet as _},
+    LcdParallelBus, LcdParallelPins, LcdParallelReadModeSet, LcdParallelWriteModeSet,
+};
 
-mod sealed {
-    #[doc(hidden)]
-    pub trait WriteModeSet<E> {
-        fn set_write_mode(&mut self) -> Result<(), E>;
-    }
-
-    #[doc(hidden)]
-    pub trait ReadModeSet<E> {
-        fn set_read_mode(&mut self) -> Result<(), E>;
-    }
-}
-
-use sealed::{ReadModeSet as _, WriteModeSet as _};
-
-pub trait WriteModeSet<E>: sealed::WriteModeSet<E> {}
-
-pub trait ReadModeSet<E>: sealed::ReadModeSet<E> {}
-
-pub struct WriteOnly;
-
-impl WriteOnly {
-    /// This can be used to get a `&mut WriteOnly` when implementing your own pin struct.
-    pub fn new<T>(data: &mut T) -> &mut Self {
-        assert_eq!(core::mem::size_of::<Self>(), 0);
-        assert_eq!(core::mem::align_of::<Self>(), 1);
-
-        // # Safety
-        // WriteOnly is a Zst with no alignment constraints and `&mut T` is never null.
-        unsafe { core::mem::transmute(data) }
-    }
-}
-
-impl<E> sealed::WriteModeSet<E> for WriteOnly {
-    fn set_write_mode(&mut self) -> Result<(), E> {
-        Ok(())
-    }
-}
-
-impl<E> WriteModeSet<E> for WriteOnly {}
-
-impl<T: OutputPin> sealed::WriteModeSet<T::Error> for T {
-    fn set_write_mode(&mut self) -> Result<(), T::Error> {
-        self.set_low()
-    }
-}
-
-impl<T: OutputPin> WriteModeSet<T::Error> for T {}
-
-impl<T: OutputPin> sealed::ReadModeSet<T::Error> for T {
-    fn set_read_mode(&mut self) -> Result<(), T::Error> {
-        self.set_high()
-    }
-}
-
-impl<T: OutputPin> ReadModeSet<T::Error> for T {}
-
-#[derive(Debug)]
-#[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct LcdParallelBus<P: ParallelPins, T: LcdTimingsParallel, const WIDTH: u8> {
-    pins: P,
-    timings: T,
-}
-
-impl<P: ParallelPins, E> LcdParallelBus<P, DefaultTimingsParallel8, 8>
-where
-    P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E>,
-    P::EN: OutputPin<Error = E>,
-    P::D0: OutputPin<Error = E>,
-    P::D1: OutputPin<Error = E>,
-    P::D2: OutputPin<Error = E>,
-    P::D3: OutputPin<Error = E>,
-    P::D4: OutputPin<Error = E>,
-    P::D5: OutputPin<Error = E>,
-    P::D6: OutputPin<Error = E>,
-    P::D7: OutputPin<Error = E>,
-{
-    #[inline]
-    pub fn new_8bit(pins: P) -> Self {
-        Self {
-            pins,
-            timings: DefaultTimingsParallel8,
-        }
-    }
-}
-
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 8>
-where
-    P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E>,
-    P::EN: OutputPin<Error = E>,
-    P::D0: OutputPin<Error = E>,
-    P::D1: OutputPin<Error = E>,
-    P::D2: OutputPin<Error = E>,
-    P::D3: OutputPin<Error = E>,
-    P::D4: OutputPin<Error = E>,
-    P::D5: OutputPin<Error = E>,
-    P::D6: OutputPin<Error = E>,
-    P::D7: OutputPin<Error = E>,
-{
-    #[inline]
-    pub fn new_8bit_with_timings(pins: P, timings: T) -> Self {
-        Self { pins, timings }
-    }
-}
-
-impl<P: ParallelPins<D0 = Infallible, D1 = Infallible, D2 = Infallible, D3 = Infallible>, E>
-    LcdParallelBus<P, DefaultTimingsParallel4, 4>
-where
-    P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E>,
-    P::EN: OutputPin<Error = E>,
-    P::D4: OutputPin<Error = E>,
-    P::D5: OutputPin<Error = E>,
-    P::D6: OutputPin<Error = E>,
-    P::D7: OutputPin<Error = E>,
-{
-    #[inline]
-    pub fn new_4bit(pins: P) -> Self {
-        Self {
-            pins,
-            timings: DefaultTimingsParallel4,
-        }
-    }
-}
-
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 4>
-where
-    P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E>,
-    P::EN: OutputPin<Error = E>,
-    P::D4: OutputPin<Error = E>,
-    P::D5: OutputPin<Error = E>,
-    P::D6: OutputPin<Error = E>,
-    P::D7: OutputPin<Error = E>,
-{
-    #[inline]
-    pub fn new_4bit_with_timings(pins: P, timings: T) -> Self {
-        Self { pins, timings }
-    }
-}
-
-impl<P: ParallelPins, T: LcdTimingsParallel, const WIDTH: u8> LcdParallelBus<P, T, WIDTH>
+impl<P: LcdParallelPins, T, const WIDTH: u8> LcdParallelBus<P, T, WIDTH>
 where
     P::EN: OutputPin,
 {
     #[inline(always)]
-    fn enable_on(
+    fn enable_on<Delay: ?Sized>(
         &mut self,
         rs: LcdRegisterSelect,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), <P::EN as ErrorType>::Error> {
+        delay: &mut Delay,
+    ) -> Result<(), <P::EN as ErrorType>::Error>
+    where
+        T: LcdTimingsParallel<Delay>,
+    {
         self.pins.en().set_high()?;
         self.timings.enable_pulse_on(rs, delay);
         Ok(())
     }
 
     #[inline(always)]
-    fn enable_off(
+    fn enable_off<Delay: ?Sized>(
         &mut self,
         rs: LcdRegisterSelect,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), <P::EN as ErrorType>::Error> {
+        delay: &mut Delay,
+    ) -> Result<(), <P::EN as ErrorType>::Error>
+    where
+        T: LcdTimingsParallel<Delay>,
+    {
         self.pins.en().set_low()?;
         self.timings.enable_pulse_off(rs, delay);
         Ok(())
     }
 
     #[inline(always)]
-    fn enable_on_read(
+    fn enable_on_read<Delay: ?Sized>(
         &mut self,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), <P::EN as ErrorType>::Error> {
+        delay: &mut Delay,
+    ) -> Result<(), <P::EN as ErrorType>::Error>
+    where
+        T: LcdTimingsParallel<Delay>,
+    {
         self.pins.en().set_high()?;
         self.timings.read_delay(delay);
         Ok(())
     }
 
     #[inline(always)]
-    fn enable_pulse(
+    fn enable_pulse<Delay: ?Sized>(
         &mut self,
         rs: LcdRegisterSelect,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), <P::EN as ErrorType>::Error> {
+        delay: &mut Delay,
+    ) -> Result<(), <P::EN as ErrorType>::Error>
+    where
+        T: LcdTimingsParallel<Delay>,
+    {
         self.enable_on(rs, delay)?;
         self.enable_off(rs, delay)?;
         Ok(())
     }
 
     #[inline(always)]
-    fn enable_pulse_no_delay_after(
+    fn enable_pulse_no_delay_after<Delay: ?Sized>(
         &mut self,
         rs: LcdRegisterSelect,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), <P::EN as ErrorType>::Error> {
+        delay: &mut Delay,
+    ) -> Result<(), <P::EN as ErrorType>::Error>
+    where
+        T: LcdTimingsParallel<Delay>,
+    {
         self.enable_on(rs, delay)?;
         self.pins.en().set_low()?;
         Ok(())
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 8>
+impl<P: LcdParallelPins, T, E> LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
     P::EN: OutputPin<Error = E>,
@@ -246,10 +118,10 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 8>
+impl<P: LcdParallelPins, T, E> LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E> + ReadModeSet<E>,
+    P::RW: LcdParallelWriteModeSet<E> + LcdParallelReadModeSet<E>,
     P::EN: OutputPin<Error = E>,
     P::D0: OutputPin<Error = E> + InputPin<Error = E>,
     P::D1: OutputPin<Error = E> + InputPin<Error = E>,
@@ -261,7 +133,10 @@ where
     P::D7: OutputPin<Error = E> + InputPin<Error = E>,
 {
     #[inline(always)]
-    fn read_8bit(&mut self, delay: &mut impl DelayNs) -> Result<u8, E> {
+    fn read_8bit<Delay: ?Sized>(&mut self, delay: &mut Delay) -> Result<u8, E>
+    where
+        T: LcdTimingsParallel<Delay>,
+    {
         self.pins.rw().set_read_mode()?;
         self.pins.rs().set_low()?;
         self.pins.d0().set_high()?;
@@ -291,7 +166,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 4>
+impl<P: LcdParallelPins, T, E> LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
     P::EN: OutputPin<Error = E>,
@@ -311,10 +186,10 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdParallelBus<P, T, 4>
+impl<P: LcdParallelPins, T, E> LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E> + ReadModeSet<E>,
+    P::RW: LcdParallelWriteModeSet<E> + LcdParallelReadModeSet<E>,
     P::EN: OutputPin<Error = E>,
     P::D4: InputPin<Error = E> + OutputPin<Error = E>,
     P::D5: InputPin<Error = E> + OutputPin<Error = E>,
@@ -322,7 +197,10 @@ where
     P::D7: InputPin<Error = E> + OutputPin<Error = E>,
 {
     #[inline(always)]
-    fn read_4bit(&mut self, delay: &mut impl DelayNs) -> Result<u8, E> {
+    fn read_4bit<Delay: ?Sized>(&mut self, delay: &mut Delay) -> Result<u8, E>
+    where
+        T: LcdTimingsParallel<Delay>,
+    {
         self.pins.rw().set_read_mode()?;
         self.pins.d4().set_high()?;
         self.pins.d5().set_high()?;
@@ -352,7 +230,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdWrite for LcdParallelBus<P, T, 8>
+impl<P: LcdParallelPins, T, E, Delay> LcdWrite<Delay> for LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
     P::EN: OutputPin<Error = E>,
@@ -364,6 +242,8 @@ where
     P::D5: OutputPin<Error = E>,
     P::D6: OutputPin<Error = E>,
     P::D7: OutputPin<Error = E>,
+    Delay: DelayNs + ?Sized,
+    T: LcdTimingsParallel<Delay>,
 {
     type Error = E;
 
@@ -372,7 +252,7 @@ where
         &mut self,
         rs: LcdRegisterSelect,
         data: u8,
-        delay: &mut impl DelayNs,
+        delay: &mut Delay,
     ) -> Result<(), Self::Error> {
         self.pins.rs().set_state(rs.into())?;
         self.set_8bit(data)?;
@@ -380,10 +260,10 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdRead for LcdParallelBus<P, T, 8>
+impl<P: LcdParallelPins, T, E, Delay> LcdRead<Delay> for LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E> + ReadModeSet<E>,
+    P::RW: LcdParallelWriteModeSet<E> + LcdParallelReadModeSet<E>,
     P::EN: OutputPin<Error = E>,
     P::D0: OutputPin<Error = E> + InputPin<Error = E>,
     P::D1: OutputPin<Error = E> + InputPin<Error = E>,
@@ -393,20 +273,20 @@ where
     P::D5: OutputPin<Error = E> + InputPin<Error = E>,
     P::D6: OutputPin<Error = E> + InputPin<Error = E>,
     P::D7: OutputPin<Error = E> + InputPin<Error = E>,
+    Delay: DelayNs + ?Sized,
+    T: LcdTimingsParallel<Delay>,
 {
-    type Error = E;
-
-    fn read_status(&mut self, delay: &mut impl DelayNs) -> Result<LcdStatus, Self::Error> {
+    fn read_status(&mut self, delay: &mut Delay) -> Result<LcdStatus, Self::Error> {
         self.pins.rs().set_low()?;
         let data = self.read_8bit(delay)?;
         Ok(LcdStatus::from_bits_retain(data))
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdInit for LcdParallelBus<P, T, 8>
+impl<P: LcdParallelPins, T, E, Delay> LcdInit<Delay> for LcdParallelBus<P, T, 8>
 where
     P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E>,
+    P::RW: LcdParallelWriteModeSet<E>,
     P::EN: OutputPin<Error = E>,
     P::D0: OutputPin<Error = E>,
     P::D1: OutputPin<Error = E>,
@@ -416,13 +296,15 @@ where
     P::D5: OutputPin<Error = E>,
     P::D6: OutputPin<Error = E>,
     P::D7: OutputPin<Error = E>,
+    Delay: DelayNs + ?Sized,
+    T: LcdTimingsParallel<Delay>,
 {
     fn init(
         &mut self,
-        function: crate::driver::LcdFunctionMode,
+        function: LcdFunctionMode,
         display: LcdDisplayMode,
-        entry: crate::driver::LcdEntryMode,
-        delay: &mut impl DelayNs,
+        entry: LcdEntryMode,
+        delay: &mut Delay,
     ) -> Result<(), Self::Error> {
         self.pins.rs().set_low()?;
         self.pins.rw().set_write_mode()?;
@@ -458,7 +340,7 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdWrite for LcdParallelBus<P, T, 4>
+impl<P: LcdParallelPins, T, E, Delay> LcdWrite<Delay> for LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
     P::EN: OutputPin<Error = E>,
@@ -466,6 +348,8 @@ where
     P::D5: OutputPin<Error = E>,
     P::D6: OutputPin<Error = E>,
     P::D7: OutputPin<Error = E>,
+    Delay: DelayNs + ?Sized,
+    T: LcdTimingsParallel<Delay>,
 {
     type Error = E;
 
@@ -474,7 +358,7 @@ where
         &mut self,
         rs: LcdRegisterSelect,
         data: u8,
-        delay: &mut impl DelayNs,
+        delay: &mut Delay,
     ) -> Result<(), Self::Error> {
         self.pins.rs().set_state(rs.into())?;
         self.set_4bit(data >> 4)?;
@@ -484,41 +368,43 @@ where
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdRead for LcdParallelBus<P, T, 4>
+impl<P: LcdParallelPins, T, E, Delay> LcdRead<Delay> for LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E> + ReadModeSet<E>,
+    P::RW: LcdParallelWriteModeSet<E> + LcdParallelReadModeSet<E>,
     P::EN: OutputPin<Error = E>,
     P::D4: OutputPin<Error = E> + InputPin<Error = E>,
     P::D5: OutputPin<Error = E> + InputPin<Error = E>,
     P::D6: OutputPin<Error = E> + InputPin<Error = E>,
     P::D7: OutputPin<Error = E> + InputPin<Error = E>,
+    Delay: DelayNs + ?Sized,
+    T: LcdTimingsParallel<Delay>,
 {
-    type Error = E;
-
-    fn read_status(&mut self, delay: &mut impl DelayNs) -> Result<LcdStatus, Self::Error> {
+    fn read_status(&mut self, delay: &mut Delay) -> Result<LcdStatus, Self::Error> {
         self.pins.rs().set_low()?;
         let data = self.read_4bit(delay)?;
         Ok(LcdStatus::from_bits_retain(data))
     }
 }
 
-impl<P: ParallelPins, T: LcdTimingsParallel, E> LcdInit for LcdParallelBus<P, T, 4>
+impl<P: LcdParallelPins, T, E, Delay> LcdInit<Delay> for LcdParallelBus<P, T, 4>
 where
     P::RS: OutputPin<Error = E>,
-    P::RW: WriteModeSet<E>,
+    P::RW: LcdParallelWriteModeSet<E>,
     P::EN: OutputPin<Error = E>,
     P::D4: OutputPin<Error = E>,
     P::D5: OutputPin<Error = E>,
     P::D6: OutputPin<Error = E>,
     P::D7: OutputPin<Error = E>,
+    Delay: DelayNs + ?Sized,
+    T: LcdTimingsParallel<Delay>,
 {
     fn init(
         &mut self,
         function: crate::driver::LcdFunctionMode,
         display: LcdDisplayMode,
         entry: crate::driver::LcdEntryMode,
-        delay: &mut impl DelayNs,
+        delay: &mut Delay,
     ) -> Result<(), Self::Error> {
         self.pins.rs().set_low()?;
         self.pins.rw().set_write_mode()?;

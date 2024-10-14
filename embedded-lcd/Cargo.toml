@@ -16,6 +16,7 @@ version = "0.3.8"
 optional = true
 
 [features]
-default = ["ufmt", "defmt"]
+default = ["ufmt", "defmt", "blocking"]
+blocking = []
 ufmt = ["dep:ufmt"]
 defmt = ["dep:defmt"]

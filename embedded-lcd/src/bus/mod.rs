@@ -1,12 +1,15 @@
-use embedded_hal::digital::PinState;
-
+#[cfg(feature = "blocking")]
 pub mod blocking;
 
-mod pins;
-pub use pins::*;
+mod i2c_8574;
+pub use i2c_8574::*;
+mod parallel;
+pub use parallel::*;
 
 mod timings;
 pub use timings::*;
+
+use embedded_hal::digital::PinState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]

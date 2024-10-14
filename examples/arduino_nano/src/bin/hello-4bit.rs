@@ -4,8 +4,8 @@
 use arduino_hal::Delay;
 use embedded_hal::delay::DelayNs as _;
 use embedded_lcd::{
-    blocking::BlockingLcdDriver,
-    bus::{blocking::parallel::LcdParallelBus, ParallelPinsW4},
+    blocking::*,
+    bus::{LcdParallelBus, LcdParallelPinsW4},
     LcdDisplayMode, LcdDriver,
 };
 
@@ -24,7 +24,7 @@ fn main() -> ! {
     ufmt::uwriteln!(serial, "Start").unwrap();
 
     // Create 4 bit parallel bus
-    let bus = LcdParallelBus::new_4bit(ParallelPinsW4 {
+    let bus = LcdParallelBus::new_4bit(LcdParallelPinsW4 {
         rs: pins.d12.into_output(),
         en: pins.d11.into_output(),
         d4: pins.d6.into_opendrain(),

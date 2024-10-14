@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use arduino_hal::Delay;
+use arduino_hal::{i2c, Delay};
 use embedded_hal::delay::DelayNs as _;
 use embedded_lcd::{blocking::*, bus::LcdI2c8574Bus, LcdDisplayMode, LcdDriver};
 
@@ -43,6 +43,8 @@ fn main() -> ! {
         .set_display_mode(LcdDisplayMode::SHOW_DISPLAY, &mut delay)
         .unwrap();
 
+    let display = &mut display as &mut dyn WritableLcd;
+
     const HELLO_WORLDS: &[&str] = &[
         "Hello, world!",
         "Hallo, Welt!",
@@ -52,10 +54,25 @@ fn main() -> ! {
     ];
 
     for hello in HELLO_WORLDS.iter().cycle() {
-        display.clear(&mut delay).unwrap();
-        display.return_home(&mut delay).unwrap();
-        display.write_str(&hello, &mut delay).unwrap();
-        delay.delay_ms(2000);
+        show_message(display, hello, &mut delay);
     }
     unreachable!()
+}
+
+trait WritableLcd:
+    BlockingLcdDriver<Delay, Error = i2c::Error> + BlockingLcdWrite<Delay, Error = i2c::Error>
+{
+}
+
+impl<T> WritableLcd for T where
+    T: BlockingLcdDriver<Delay, Error = i2c::Error> + BlockingLcdWrite<Delay, Error = i2c::Error>
+{
+}
+
+#[inline(never)]
+fn show_message(display: &mut dyn WritableLcd, message: &str, delay: &mut Delay) {
+    display.clear(delay).unwrap();
+    display.return_home(delay).unwrap();
+    display.write_str(&message, delay).unwrap();
+    delay.delay_ms(2000);
 }

@@ -1,8 +1,8 @@
 use core::convert::Infallible;
 
-use super::blocking::parallel::WriteOnly;
+use super::LcdParallelWriteOnly;
 
-pub trait ParallelPins {
+pub trait LcdParallelPins {
     type RS;
     type RW;
     type EN;
@@ -31,7 +31,7 @@ pub trait ParallelPins {
 #[derive(Debug)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct ParallelPinsRW8<RS, RW, EN, D0, D1, D2, D3, D4, D5, D6, D7> {
+pub struct LcdParallelPinsRW8<RS, RW, EN, D0, D1, D2, D3, D4, D5, D6, D7> {
     pub rs: RS,
     pub rw: RW,
     pub en: EN,
@@ -45,8 +45,8 @@ pub struct ParallelPinsRW8<RS, RW, EN, D0, D1, D2, D3, D4, D5, D6, D7> {
     pub d7: D7,
 }
 
-impl<RS, RW, EN, D0, D1, D2, D3, D4, D5, D6, D7> ParallelPins
-    for ParallelPinsRW8<RS, RW, EN, D0, D1, D2, D3, D4, D5, D6, D7>
+impl<RS, RW, EN, D0, D1, D2, D3, D4, D5, D6, D7> LcdParallelPins
+    for LcdParallelPinsRW8<RS, RW, EN, D0, D1, D2, D3, D4, D5, D6, D7>
 {
     type RS = RS;
     type RW = RW;
@@ -98,7 +98,7 @@ impl<RS, RW, EN, D0, D1, D2, D3, D4, D5, D6, D7> ParallelPins
 #[derive(Debug)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct ParallelPinsW8<RS, EN, D0, D1, D2, D3, D4, D5, D6, D7> {
+pub struct LcdParallelPinsW8<RS, EN, D0, D1, D2, D3, D4, D5, D6, D7> {
     pub rs: RS,
     pub en: EN,
     pub d0: D0,
@@ -111,11 +111,11 @@ pub struct ParallelPinsW8<RS, EN, D0, D1, D2, D3, D4, D5, D6, D7> {
     pub d7: D7,
 }
 
-impl<RS, EN, D0, D1, D2, D3, D4, D5, D6, D7> ParallelPins
-    for ParallelPinsW8<RS, EN, D0, D1, D2, D3, D4, D5, D6, D7>
+impl<RS, EN, D0, D1, D2, D3, D4, D5, D6, D7> LcdParallelPins
+    for LcdParallelPinsW8<RS, EN, D0, D1, D2, D3, D4, D5, D6, D7>
 {
     type RS = RS;
-    type RW = WriteOnly;
+    type RW = LcdParallelWriteOnly;
     type EN = EN;
     type D0 = D0;
     type D1 = D1;
@@ -130,7 +130,7 @@ impl<RS, EN, D0, D1, D2, D3, D4, D5, D6, D7> ParallelPins
         &mut self.rs
     }
     fn rw(&mut self) -> &mut Self::RW {
-        WriteOnly::new(self)
+        LcdParallelWriteOnly::new(self)
     }
     fn en(&mut self) -> &mut Self::EN {
         &mut self.en
@@ -164,7 +164,7 @@ impl<RS, EN, D0, D1, D2, D3, D4, D5, D6, D7> ParallelPins
 #[derive(Debug)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct ParallelPinsRW4<RS, RW, EN, D4, D5, D6, D7> {
+pub struct LcdParallelPinsRW4<RS, RW, EN, D4, D5, D6, D7> {
     pub rs: RS,
     pub rw: RW,
     pub en: EN,
@@ -174,7 +174,9 @@ pub struct ParallelPinsRW4<RS, RW, EN, D4, D5, D6, D7> {
     pub d7: D7,
 }
 
-impl<RS, RW, EN, D4, D5, D6, D7> ParallelPins for ParallelPinsRW4<RS, RW, EN, D4, D5, D6, D7> {
+impl<RS, RW, EN, D4, D5, D6, D7> LcdParallelPins
+    for LcdParallelPinsRW4<RS, RW, EN, D4, D5, D6, D7>
+{
     type RS = RS;
     type RW = RW;
     type EN = EN;
@@ -225,7 +227,7 @@ impl<RS, RW, EN, D4, D5, D6, D7> ParallelPins for ParallelPinsRW4<RS, RW, EN, D4
 #[derive(Debug)]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct ParallelPinsW4<RS, EN, D4, D5, D6, D7> {
+pub struct LcdParallelPinsW4<RS, EN, D4, D5, D6, D7> {
     pub rs: RS,
     pub en: EN,
     pub d4: D4,
@@ -234,9 +236,9 @@ pub struct ParallelPinsW4<RS, EN, D4, D5, D6, D7> {
     pub d7: D7,
 }
 
-impl<RS, EN, D4, D5, D6, D7> ParallelPins for ParallelPinsW4<RS, EN, D4, D5, D6, D7> {
+impl<RS, EN, D4, D5, D6, D7> LcdParallelPins for LcdParallelPinsW4<RS, EN, D4, D5, D6, D7> {
     type RS = RS;
-    type RW = WriteOnly;
+    type RW = LcdParallelWriteOnly;
     type EN = EN;
     type D0 = Infallible;
     type D1 = Infallible;
@@ -251,7 +253,7 @@ impl<RS, EN, D4, D5, D6, D7> ParallelPins for ParallelPinsW4<RS, EN, D4, D5, D6,
         &mut self.rs
     }
     fn rw(&mut self) -> &mut Self::RW {
-        WriteOnly::new(self)
+        LcdParallelWriteOnly::new(self)
     }
     fn en(&mut self) -> &mut Self::EN {
         &mut self.en

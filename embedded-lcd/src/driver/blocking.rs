@@ -12,62 +12,82 @@ use crate::{
 
 use super::{LcdDisplayMode, LcdDriver, LcdStatus};
 
-pub trait BlockingLcdDriver<B, M, C>: Sized
+pub trait BlockingLcdDriverInit<Delay>: Sized
 where
-    B: LcdWrite,
-    M: DisplayMemoryMap,
+    Delay: DelayNs + ?Sized,
 {
-    fn init(memory_map: M, charset: C, bus: B, delay: &mut impl DelayNs) -> Result<Self, B::Error>
-    where
-        B: LcdInit;
+    type MemoryMap: DisplayMemoryMap;
+    type Charset;
+    type Bus: LcdInit<Delay> + LcdWrite<Delay>;
 
-    fn clear(&mut self, delay: &mut impl DelayNs) -> Result<(), B::Error>;
+    fn init(
+        memory_map: Self::MemoryMap,
+        charset: Self::Charset,
+        bus: Self::Bus,
+        delay: &mut Delay,
+    ) -> Result<Self, <Self::Bus as LcdWrite<Delay>>::Error>;
+}
 
-    fn return_home(&mut self, delay: &mut impl DelayNs) -> Result<(), <B as LcdWrite>::Error>;
+pub trait BlockingLcdDriverDestroy {
+    type Bus;
 
-    fn set_display_mode(
-        &mut self,
-        display_mode: LcdDisplayMode,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), B::Error>;
+    fn destroy(self) -> Self::Bus;
+}
 
-    fn set_xy(&mut self, x: u8, y: u8, delay: &mut impl DelayNs) -> Result<(), B::Error>;
+pub trait BlockingLcdWrite<Delay: ?Sized> {
+    type Error;
 
-    fn set_address(&mut self, address: u8, delay: &mut impl DelayNs) -> Result<(), B::Error>;
+    fn write_char(&mut self, ch: char, delay: &mut Delay) -> Result<(), Self::Error>;
 
-    fn write_char(&mut self, ch: char, delay: &mut impl DelayNs) -> Result<(), B::Error>
-    where
-        C: CharsetWithFallback;
-
-    fn write_str(&mut self, s: &str, delay: &mut impl DelayNs) -> Result<(), <B as LcdWrite>::Error>
-    where
-        C: CharsetWithFallback,
-    {
+    fn write_str(&mut self, s: &str, delay: &mut Delay) -> Result<(), Self::Error> {
         for ch in s.chars() {
             self.write_char(ch, delay)?;
         }
         Ok(())
     }
-
-    fn status(&mut self, delay: &mut impl DelayNs) -> Result<LcdStatus, <B as LcdRead>::Error>
-    where
-        B: LcdRead<Error = <B as LcdWrite>::Error>;
 }
 
-impl<B, M, C> BlockingLcdDriver<B, M, C> for LcdDriver<B, M, C>
+pub trait BlockingLcdRead<Delay: ?Sized> {
+    type Error;
+
+    fn status(&mut self, delay: &mut Delay) -> Result<LcdStatus, Self::Error>;
+}
+
+pub trait BlockingLcdDriver<Delay: ?Sized> {
+    type Error;
+
+    fn clear(&mut self, delay: &mut Delay) -> Result<(), Self::Error>;
+
+    fn return_home(&mut self, delay: &mut Delay) -> Result<(), Self::Error>;
+
+    fn set_display_mode(
+        &mut self,
+        display_mode: LcdDisplayMode,
+        delay: &mut Delay,
+    ) -> Result<(), Self::Error>;
+
+    fn set_xy(&mut self, x: u8, y: u8, delay: &mut Delay) -> Result<(), Self::Error>;
+
+    fn set_address(&mut self, address: u8, delay: &mut Delay) -> Result<(), Self::Error>;
+}
+
+impl<B, M, C, Delay> BlockingLcdDriverInit<Delay> for LcdDriver<B, M, C>
 where
-    B: LcdWrite,
+    B: LcdInit<Delay> + LcdWrite<Delay>,
     M: DisplayMemoryMap,
+    Delay: DelayNs + ?Sized,
 {
+    type MemoryMap = M;
+    type Charset = C;
+    type Bus = B;
+
+    // TODO: hand back arguments on error
     fn init(
-        memory_map: M,
-        charset: C,
-        mut bus: B,
-        delay: &mut impl DelayNs,
-    ) -> Result<Self, B::Error>
-    where
-        B: LcdInit,
-    {
+        memory_map: Self::MemoryMap,
+        charset: Self::Charset,
+        mut bus: Self::Bus,
+        delay: &mut Delay,
+    ) -> Result<Self, <Self::Bus as LcdWrite<Delay>>::Error> {
         let mut function = LcdFunctionMode::empty();
         // Enables the second memory line for 2-line displays.
         if memory_map.has_two_memory_lines() {
@@ -89,13 +109,22 @@ where
             display_mode,
         })
     }
+}
 
-    fn clear(&mut self, delay: &mut impl DelayNs) -> Result<(), <B as LcdWrite>::Error> {
+impl<B, M, C, Delay> BlockingLcdDriver<Delay> for LcdDriver<B, M, C>
+where
+    B: LcdWrite<Delay>,
+    M: DisplayMemoryMap,
+    Delay: DelayNs + ?Sized,
+{
+    type Error = B::Error;
+
+    fn clear(&mut self, delay: &mut Delay) -> Result<(), Self::Error> {
         self.bus
             .write(LcdRegisterSelect::Control, crate::CLEAR_DISPLAY, delay)
     }
 
-    fn return_home(&mut self, delay: &mut impl DelayNs) -> Result<(), <B as LcdWrite>::Error> {
+    fn return_home(&mut self, delay: &mut Delay) -> Result<(), Self::Error> {
         self.bus
             .write(LcdRegisterSelect::Control, crate::RETURN_HOME, delay)
     }
@@ -103,8 +132,8 @@ where
     fn set_display_mode(
         &mut self,
         display_mode: LcdDisplayMode,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), <B as LcdWrite>::Error> {
+        delay: &mut Delay,
+    ) -> Result<(), Self::Error> {
         self.bus.write(
             LcdRegisterSelect::Control,
             crate::DISPLAY_CONTROL | display_mode.intersection(LcdDisplayMode::all()).bits(),
@@ -112,23 +141,14 @@ where
         )
     }
 
-    fn set_xy(
-        &mut self,
-        x: u8,
-        y: u8,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), <B as LcdWrite>::Error> {
+    fn set_xy(&mut self, x: u8, y: u8, delay: &mut Delay) -> Result<(), Self::Error> {
         let Some(address) = self.memory_map.address_for_xy(x, y) else {
-            return Ok(());
+            return Ok(()); // TODO: Better error handling
         };
         self.set_address(address, delay)
     }
 
-    fn set_address(
-        &mut self,
-        address: u8,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), <B as LcdWrite>::Error> {
+    fn set_address(&mut self, address: u8, delay: &mut Delay) -> Result<(), Self::Error> {
         self.bus.write(
             LcdRegisterSelect::Control,
             crate::SET_DDRAM_ADDRESS | address,
@@ -136,25 +156,38 @@ where
         )?;
         Ok(())
     }
+}
 
-    fn write_char(
-        &mut self,
-        ch: char,
-        delay: &mut impl DelayNs,
-    ) -> Result<(), <B as LcdWrite>::Error>
-    where
-        C: CharsetWithFallback,
-    {
+impl<B, M, C, Delay> BlockingLcdWrite<Delay> for LcdDriver<B, M, C>
+where
+    B: LcdWrite<Delay>,
+    M: DisplayMemoryMap,
+    C: CharsetWithFallback,
+    Delay: DelayNs + ?Sized,
+{
+    type Error = B::Error;
+
+    fn write_char(&mut self, ch: char, delay: &mut Delay) -> Result<(), Self::Error> {
         self.bus.write(
             LcdRegisterSelect::Memory,
             self.charset.code_from_utf8_with_fallback(ch),
             delay,
         )
     }
+}
 
-    fn status(&mut self, delay: &mut impl DelayNs) -> Result<LcdStatus, <B as LcdRead>::Error>
+impl<B, M, C, Delay> BlockingLcdRead<Delay> for LcdDriver<B, M, C>
+where
+    B: LcdRead<Delay>,
+    M: DisplayMemoryMap,
+    C: CharsetWithFallback,
+    Delay: DelayNs + ?Sized,
+{
+    type Error = B::Error;
+
+    fn status(&mut self, delay: &mut Delay) -> Result<LcdStatus, Self::Error>
     where
-        B: LcdRead<Error = <B as LcdWrite>::Error>,
+        B: LcdRead<Delay>,
     {
         self.bus.read_status(delay)
     }
